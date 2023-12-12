@@ -6,6 +6,7 @@ from inflection import underscore
 from modules.processing import StableDiffusionProcessingTxt2Img, StableDiffusionProcessingImg2Img
 from modules.shared import sd_upscalers, opts, parser
 from typing import Dict, List
+from fastapi import UploadFile, File
 
 API_NOT_ALLOWED = [
     "self",
@@ -267,3 +268,27 @@ class EmbeddingsResponse(BaseModel):
 class MemoryResponse(BaseModel):
     ram: dict = Field(title="RAM", description="System memory stats")
     cuda: dict = Field(title="CUDA", description="nVidia CUDA memory stats")
+
+class Pix2PixResponse(BaseModel):
+    seed: int
+    text_cfg_scale: int
+    image_cfg_scale: int
+    images_array: List[str] = Field(default=None, title="Image", description="The generated image in base64 format.")
+
+class Pix2PixRequest(BaseModel):
+    images: List[str] = Field(title="Image", description="The base64 encoded PNG image")
+    instruction: str
+    steps: int
+    randomized_seed: bool
+    seed: int
+    randomize_cfg: bool
+    text_cfg_scale: float
+    image_cfg_scale: float
+    negative_prompt: str
+    batch_number: int
+
+class Pix2PixVideoRequest(BaseModel):
+    video: UploadFile = File(...)
+
+class Pix2PixVideoResponse(BaseModel):
+    message: str

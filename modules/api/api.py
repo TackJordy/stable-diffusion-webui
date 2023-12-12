@@ -24,6 +24,8 @@ from modules import devices
 from typing import List
 import piexif
 import piexif.helper
+from modules.api.pix2pix import *
+from fastapi.middleware.cors import CORSMiddleware
 
 def upscaler_to_index(name: str):
     try:
@@ -41,7 +43,6 @@ def validate_sampler_name(name):
     config = sd_samplers.all_samplers_map.get(name, None)
     if config is None:
         raise HTTPException(status_code=404, detail="Sampler not found")
-
     return name
 
 def setUpscalers(req: dict):
@@ -108,6 +109,16 @@ def api_middleware(app: FastAPI):
                 duration = duration,
             ))
         return res
+    origins = [
+        "http://localhost:9000"
+    ]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 class Api:
@@ -149,6 +160,8 @@ class Api:
         self.add_api_route("/sdapi/v1/train/embedding", self.train_embedding, methods=["POST"], response_model=TrainResponse)
         self.add_api_route("/sdapi/v1/train/hypernetwork", self.train_hypernetwork, methods=["POST"], response_model=TrainResponse)
         self.add_api_route("/sdapi/v1/memory", self.get_memory, methods=["GET"], response_model=MemoryResponse)
+        self.add_api_route("/sdapi/v1/pix2pix", self.pix2pixapi, methods=["POST"], response_model=Pix2PixResponse)
+        self.add_api_route("/sdapi/v1/pix2pixvideo", self.pix2pixvideoapi, methods=["POST"], response_model=Pix2PixVideoResponse)
 
     def add_api_route(self, path: str, endpoint, **kwargs):
         if shared.cmd_opts.api_auth:
@@ -205,6 +218,27 @@ class Api:
         b64images = list(map(encode_pil_to_base64, processed.images))
 
         return TextToImageResponse(images=b64images, parameters=vars(txt2imgreq), info=processed.js())
+
+    async def pix2pixvideoapi(file: UploadFile = File()):
+        print("it workssssssss")
+        print(file)
+        with open("video.webm", "wb") as f:
+            f.write(await file.read())
+        return Pix2PixVideoResponse(message="It works")
+
+    def pix2pixapi(self, req: Pix2PixRequest):
+        if (req.video):
+            print("Er is een video aanwezig")
+            print(req.video)
+        images = req.images
+        images = [decode_base64_to_image(image) for image in images]
+        output_images = []
+        for image in images:
+            [seed, text_cfg_scale, image_cfg_scale, images_array] = generate(image, req.instruction, req.steps, req.randomized_seed, req.seed, req.randomize_cfg, req.text_cfg_scale, req.image_cfg_scale, req.negative_prompt, req.batch_number)
+            output_images.append(images_array[0])
+        b64images = list(map(encode_pil_to_base64, output_images))
+        resp = Pix2PixResponse(seed=seed, text_cfg_scale=text_cfg_scale, image_cfg_scale=image_cfg_scale, images_array=b64images)
+        return resp
 
     def img2imgapi(self, img2imgreq: StableDiffusionImg2ImgProcessingAPI):
         init_images = img2imgreq.init_images
